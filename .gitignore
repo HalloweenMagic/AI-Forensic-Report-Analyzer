@@ -1,0 +1,45 @@
+# File di configurazione utente
+.api_keys.enc
+.api_salt
+.user_preferences.json
+
+# Cartelle output
+output/
+*_chunks/
+*_analisi/
+pdf_chunks/
+Report_analisi/
+
+# Template salvati
+prompt_templates.json
+
+# File di test e debug
+test_output.html
+
+# Documentazione privata
+README.md
+progetto_stato.md
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
