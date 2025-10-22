@@ -176,4 +176,20 @@ Il prompt integrato è strutturato in **8 sezioni di analisi**, pensate per inda
 5. **Minacce e Contenuti Problematici** ⚠️ — offese, aggressioni, circonvenzioni  
 6. **Informazioni Sensibili** — numeri di telefono, email, dati personali  
 7. **Pattern di Comunicazione** — temi ricorrenti, tono, relazioni  
-8. **Note Forensi** — anomalie, messaggi eliminati, incongruenze  
+8. **Note Forensi** — anomalie, messaggi eliminati, incongruenze
+
+---
+
+## 📜 Gestione licenze ed uso
+
+![Screenshot_licenze](licenze.jpg)
+
+Il tool presenta inoltre la possibilità di tracciare l'utilizzo del software e distribuire licenze.
+Per utilizzare questa funzione è necessario caricare il sistema API all'interno in un hosting con supportp PHP + MySql
+
+### 1️⃣ Installazione sistema licenze 
+```bash
+Crea un database MySql
+Importa il file "database.sql" utilizzando PhpMyAdmin
+Inserisci i dati del database nel file "config.php"
+```
