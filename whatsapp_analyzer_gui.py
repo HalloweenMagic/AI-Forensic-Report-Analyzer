@@ -22,6 +22,8 @@ sys.path.append(str(Path(__file__).parent))
 from whatsapp_processor import WhatsAppProcessor
 from ai_analyzer import AIAnalyzer
 from api_key_manager import APIKeyManager
+from license_manager import LicenseManager
+from license_dialog import LicenseDialog
 
 class WhatsAppAnalyzerGUI:
     def __init__(self, root):
@@ -29,6 +31,12 @@ class WhatsAppAnalyzerGUI:
         self.root.title("WhatsApp Forensic Analyzer - by Luca Mercatanti")
         self.root.geometry("910x1050")
         self.root.resizable(True, True)
+
+        # Crea License Manager (ma non valida ancora)
+        self.license_manager = LicenseManager(
+            license_file=".license.enc",
+            api_url="https://www.winesommelier.it/licenza/api.php"
+        )
 
         # Variabili
         self.pdf_path = tk.StringVar()
@@ -77,6 +85,9 @@ class WhatsAppAnalyzerGUI:
         self.setup_menu_bar()
 
         self.setup_ui()
+
+        # ===== CONTROLLO LICENZA (DOPO setup_ui) =====
+        self._check_license()
 
         # Carica API key salvata (dopo aver creato l'UI)
         self.load_saved_api_key()
@@ -2704,6 +2715,54 @@ https://console.anthropic.com
         x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
         y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
+
+    def _check_license(self):
+        """Verifica licenza all'avvio (chiamato DOPO setup_ui)"""
+        # Verifica se esiste una licenza salvata
+        if self.license_manager.has_saved_license():
+            # Licenza presente, carica e valida
+            license_data = self.license_manager.load_license()
+
+            if license_data:
+                license_key = license_data.get('license_key')
+
+                # Valida online (timeout 5 secondi)
+                validation_result = self.license_manager.validate_license_online(license_key, timeout=5)
+
+                if not validation_result.get('valid'):
+                    # Licenza non più valida (revocata o scaduta)
+                    messagebox.showerror(
+                        "Licenza Non Valida",
+                        f"La tua licenza non è più valida.\n\n"
+                        f"Motivo: {validation_result.get('message', 'Sconosciuto')}\n\n"
+                        f"L'applicazione verrà chiusa.",
+                        parent=self.root
+                    )
+                    self.root.destroy()
+                    return
+
+                # Licenza valida, invia telemetria
+                self.license_manager.send_telemetry(license_key, app_version="3.2.2")
+            else:
+                # Errore caricamento licenza, richiedi nuovamente
+                self._show_license_dialog()
+        else:
+            # Nessuna licenza salvata, mostra dialog
+            self._show_license_dialog()
+
+    def _show_license_dialog(self):
+        """Mostra il dialog per l'inserimento della licenza"""
+        license_dialog = LicenseDialog(self.root, self.license_manager)
+        self.root.wait_window(license_dialog.dialog)
+
+        # Se l'utente ha chiuso senza validare, esce dall'applicazione
+        if not license_dialog.is_valid():
+            messagebox.showinfo(
+                "Applicazione Chiusa",
+                "L'applicazione verrà chiusa perché non è stata fornita una licenza valida.",
+                parent=self.root
+            )
+            self.root.destroy()
 
 def main():
     root = tk.Tk()
