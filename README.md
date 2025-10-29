@@ -27,11 +27,18 @@ Supporta diversi motori di intelligenza artificiale:
 - Compatibile con GPT-4o, Claude 3.5 Sonnet e LLaVA  
 
 ### 💬 Report per Chat
-- Rilevamento automatico delle conversazioni individuali  
-- Modalità **pattern matching** (gratuita) o **AI-assisted**  
-- Generazione di riassunti dedicati per ogni chat  
-- Distinzione automatica tra chat 1v1 e gruppi  
-- Output HTML strutturato e facilmente navigabile  
+- Rilevamento automatico delle conversazioni individuali mediante AI
+- Generazione di riassunti dedicati per ogni chat
+- Distinzione automatica tra chat 1v1 e gruppi
+- Output HTML strutturato e facilmente navigabile
+
+### 🗺️ Analisi Posizioni Geografiche
+- Estrazione automatica di **coordinate GPS**, **indirizzi** e **luoghi** menzionati
+- Geocoding con **Nominatim** (gratuito) o **Google Maps API**
+- Mappa interattiva con marker colorati per livello di confidence
+- Filtro per soglia di confidenza (0-100%)
+- Deduzione automatica posizioni dal contesto (opzionale)
+- Report HTML con tabella sortable e mappa Leaflet.js
 
 **Il tool analizza automaticamente:**
 
@@ -113,6 +120,40 @@ Analisi più profonda e mirata, senza sovrascrivere i risultati originali.
 |------------------|-------------|----------------|
 | 🔍 **Ricerca Rapida** | Analisi già effettuate | Per cercare o interrogare risultati precedenti |
 | 🔁 **Re-Analisi Avanzata** | Dati grezzi originali | Per nuove analisi focalizzate o correttive |
+
+---
+
+## 🗺️ Analisi Posizioni Geografiche
+
+**Estrai e visualizza automaticamente tutte le posizioni menzionate nelle conversazioni**
+
+### Come funziona:
+1. L'AI identifica **coordinate GPS**, **indirizzi** e **luoghi** nei messaggi
+2. Le posizioni vengono geocodificate (convertite in coordinate)
+3. Viene generata una **mappa interattiva** con marker colorati
+4. Ogni posizione è collegata al chunk originale per verifica
+
+### 🎯 Opzioni disponibili:
+
+**Provider Geocoding:**
+- **Nominatim (OpenStreetMap)** → Gratuito, delay 1.5 sec tra richieste
+- **Google Maps API** → API key richiesta, più preciso, delay 0.5 sec
+
+**Filtro Confidence:**
+- **Alta (70-100%)** → Coordinate GPS precise, indirizzi completi
+- **Media (40-69%)** → Luoghi generici (es. "Stazione Centrale Milano")
+- **Bassa (0-39%)** → Possibili falsi positivi
+
+**Deduzione Contesto (opzionale):**
+Quando attivo, l'AI cerca anche posizioni **implicite** come:
+- "Ci vediamo al solito posto" → (deduce da messaggi precedenti)
+- "Sono tornato a casa" → (deduce indirizzo da contesto)
+
+### 📊 Output generato:
+- **Mappa interattiva Leaflet.js** con marker colorati
+- **Tabella sortable** con tutte le posizioni trovate
+- **Link diretti** ai chunk originali per ogni menzione
+- **File JSON** con tutti i dati per elaborazioni successive
 
 ---
 
