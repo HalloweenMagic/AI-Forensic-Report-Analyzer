@@ -125,6 +125,8 @@ Analisi più profonda e mirata, senza sovrascrivere i risultati originali.
 
 ## 🗺️ Analisi Posizioni Geografiche
 
+![Screenshot_Posizioni](posizioni.jpg)
+
 **Estrai e visualizza automaticamente tutte le posizioni menzionate nelle conversazioni**
 
 ### Come funziona:
