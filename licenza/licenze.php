@@ -98,6 +98,7 @@ $conn->close();
             <a href="attivazioni.php">Attivazioni Hardware</a>
             <a href="logs.php">Log Utilizzo</a>
             <a href="accessi_senza_licenza.php">Accessi Senza Licenza</a>
+            <a href="versioni.php">Versioni App</a>
         </div>
 
         <?php if ($message): ?>
@@ -184,7 +185,11 @@ $conn->close();
                     </td>
                     <td><?php echo format_date($row['data_creazione']); ?></td>
                     <td><?php echo format_date($row['ultimo_utilizzo']); ?></td>
-                    <td>
+                    <td style="white-space: nowrap;">
+                        <a href="utente.php?id=<?php echo $row['id']; ?>" class="btn btn-primary btn-sm" style="text-decoration: none;">
+                            👤 Dettagli
+                        </a>
+
                         <form method="POST" style="display: inline;">
                             <input type="hidden" name="action" value="toggle">
                             <input type="hidden" name="id" value="<?php echo $row['id']; ?>">

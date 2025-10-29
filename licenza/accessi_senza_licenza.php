@@ -108,6 +108,7 @@ $conn->close();
             <a href="attivazioni.php">Attivazioni Hardware</a>
             <a href="logs.php">Log Utilizzo</a>
             <a href="accessi_senza_licenza.php" class="active">Accessi Senza Licenza</a>
+            <a href="versioni.php">Versioni App</a>
         </div>
 
         <!-- Statistiche -->

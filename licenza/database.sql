@@ -82,6 +82,24 @@ CREATE TABLE IF NOT EXISTS log_accessi_senza_licenza (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
+-- Tabella: app_versions
+-- Gestisce le versioni dell'applicazione per notifiche update
+-- Solo 1 versione attiva alla volta (is_active=1)
+-- ============================================
+CREATE TABLE IF NOT EXISTS app_versions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    version VARCHAR(20) NOT NULL UNIQUE,
+    release_date DATE NOT NULL,
+    download_url VARCHAR(500) NOT NULL,
+    changelog TEXT DEFAULT NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_version (version),
+    INDEX idx_is_active (is_active),
+    INDEX idx_release_date (release_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
 -- Dati di esempio (opzionale)
 -- ============================================
 
@@ -91,9 +109,15 @@ INSERT INTO licenze (license_key, nome, cognome, email, note, attiva) VALUES
 ('DEMO-ABCD-1234-EFGH', 'Luca', 'Bianchi', 'luca.bianchi@example.com', 'Licenza demo', 1),
 ('TRIAL-9999-8888-7777', 'Test', 'Utente', 'test@example.com', 'Licenza trial', 0);
 
+-- Inserisci versione corrente dell'app
+INSERT INTO app_versions (version, release_date, download_url, changelog, is_active) VALUES
+('3.4.0', '2025-10-25', 'https://github.com/tuousername/WhatsAppAnalyzer/releases/download/v3.4.0/WhatsAppAnalyzer_v3.4.0.exe',
+ '- Sistema LLM puro per rilevamento chat\n- Modalità test per Report Chat\n- Fix bug minori', 1);
+
 -- Note:
 -- - license_key: Chiave univoca generata manualmente o automaticamente
 -- - attiva: 1 = attiva, 0 = revocata/disabilitata
 -- - data_scadenza: NULL = nessuna scadenza (licenza perpetua)
 -- - Ogni licenza può essere attivata su più PC (tracciati in attivazioni_hardware)
 -- - Ogni ping viene registrato in log_utilizzo per statistiche dettagliate
+-- - app_versions: Solo 1 versione con is_active=1 alla volta (l'ultima pubblicata)
