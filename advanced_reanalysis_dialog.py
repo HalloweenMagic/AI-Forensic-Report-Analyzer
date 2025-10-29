@@ -32,9 +32,19 @@ class AdvancedReanalysisDialog:
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("🔁 Re-Analisi Avanzata - Post-Elaborazione")
         self.dialog.geometry("900x800")
+        self.center_dialog(900, 800)
         self.dialog.resizable(True, True)
 
         self.setup_ui()
+
+    def center_dialog(self, width, height):
+        """Centra il dialog sullo schermo"""
+        self.dialog.update_idletasks()
+        screen_width = self.dialog.winfo_screenwidth()
+        screen_height = self.dialog.winfo_screenheight()
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+        self.dialog.geometry(f'{width}x{height}+{x}+{y}')
 
     def setup_ui(self):
         """Configura l'interfaccia del dialog"""

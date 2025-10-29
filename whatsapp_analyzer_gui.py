@@ -9,6 +9,11 @@ Supporta: OpenAI GPT / Anthropic Claude
 © 2025 Luca Mercatanti - https://mercatanti.com
 """
 
+# VERSIONE APPLICAZIONE (aggiorna ad ogni release)
+APP_VERSION = "4.0.0"
+APP_VERSION_DATE = "2025-10-28"
+APP_NAME = "WhatsApp Forensic Analyzer"
+
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox
 import threading
@@ -24,13 +29,23 @@ from ai_analyzer import AIAnalyzer
 from api_key_manager import APIKeyManager
 from license_manager import LicenseManager
 from license_dialog import LicenseDialog
+from welcome_dialog import WelcomeDialog
+from post_analysis_info_dialog import PostAnalysisInfoDialog
+from version_checker import VersionChecker
+from update_dialog import UpdateDialog
+from location_analysis_dialog import LocationAnalysisDialog
+from location_analyzer import LocationAnalyzer
+from location_report_generator import LocationReportGenerator
 
 class WhatsAppAnalyzerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("WhatsApp Forensic Analyzer - by Luca Mercatanti")
+        self.root.title("AI Forensics Report Analyzer - by Luca Mercatanti")
         self.root.geometry("910x1050")
         self.root.resizable(True, True)
+
+        # Centra la finestra principale
+        self.center_window(self.root, 910, 1050)
 
         # Crea License Manager (ma non valida ancora)
         self.license_manager = LicenseManager(
@@ -92,29 +107,25 @@ class WhatsAppAnalyzerGUI:
         # Carica API key salvata (dopo aver creato l'UI)
         self.load_saved_api_key()
 
+        # Carica le ultime cartelle usate
+        self.load_last_folders()
+
         # Controlla analisi esistenti dopo aver creato l'UI
         self.root.after(500, self.check_existing_analyses)
 
         # Controlla se abilitare menu post-elaborazione
         self.root.after(1000, self.update_post_analysis_menu_state)
 
+        # Mostra welcome dialog se necessario (dopo che la GUI è completamente caricata)
+        self.root.after(1500, self._show_welcome_if_needed)
+
+        # Controlla versione app (solo per utenti con licenza valida, non invasivo)
+        self.root.after(2500, self._check_version_async)
+
     def setup_menu_bar(self):
         """Crea la barra menu in alto"""
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
-
-        # ===== MENU FILE =====
-        file_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Esci", command=self.root.quit)
-
-        # ===== MENU ANALISI =====
-        analysis_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Analisi", menu=analysis_menu)
-        analysis_menu.add_command(label="Avvia Analisi", command=self.start_analysis)
-        analysis_menu.add_command(label="Calcola Stime", command=self.calculate_estimates)
-        analysis_menu.add_separator()
-        analysis_menu.add_command(label="Apri Cartella Output", command=self.open_output_folder)
 
         # ===== MENU POST-ELABORAZIONE =====
         self.post_menu = tk.Menu(menubar, tearoff=0)
@@ -124,6 +135,10 @@ class WhatsAppAnalyzerGUI:
                                     state='disabled')
         self.post_menu.add_command(label="🔁 Re-Analisi Avanzata",
                                     command=self.open_advanced_reanalysis,
+                                    state='disabled')
+        self.post_menu.add_separator()
+        self.post_menu.add_command(label="🗺️ Analisi Posizioni Geografiche",
+                                    command=self.open_location_analysis,
                                     state='disabled')
         self.post_menu.add_separator()
         self.post_menu.add_command(label="💬 Report per Chat",
@@ -140,9 +155,19 @@ class WhatsAppAnalyzerGUI:
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Aiuto", menu=help_menu)
         help_menu.add_command(label="📖 Guida Utilizzo", command=self.show_usage_guide)
-        help_menu.add_command(label="💡 Info Post-Elaborazione", command=self.show_post_analysis_info)
+        help_menu.add_command(label="💡 Guida Post-Elaborazione", command=self.show_post_analysis_info)
+        help_menu.add_command(label="💬 Messaggio di benvenuto", command=self.show_welcome_message)
         help_menu.add_separator()
         help_menu.add_command(label="ℹ️ Informazioni", command=self.show_about)
+
+    def center_window(self, window, width, height):
+        """Centra una finestra sullo schermo"""
+        window.update_idletasks()
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+        window.geometry(f'{width}x{height}+{x}+{y}')
 
     def update_post_analysis_menu_state(self):
         """Abilita/disabilita menu post-elaborazione in base alla presenza di analisi"""
@@ -165,19 +190,22 @@ class WhatsAppAnalyzerGUI:
 
         if has_analyses:
             # Abilita Ricerca Rapida e Re-Analisi
-            self.post_menu.entryconfig(0, state='normal')  # Ricerca Rapida
-            self.post_menu.entryconfig(1, state='normal')  # Re-Analisi Avanzata
+            self.post_menu.entryconfig(0, state='normal')  # 🔍 Ricerca Rapida
+            self.post_menu.entryconfig(1, state='normal')  # 🔁 Re-Analisi Avanzata
 
-            # Abilita Report per Chat solo se ci sono anche i chunk
+            # Abilita Analisi Posizioni e Report per Chat solo se ci sono anche i chunk
             if has_chunks:
-                self.post_menu.entryconfig(3, state='normal')  # Report per Chat (dopo separator)
+                self.post_menu.entryconfig(3, state='normal')  # 🗺️ Analisi Posizioni Geografiche
+                self.post_menu.entryconfig(5, state='normal')  # 💬 Report per Chat
             else:
                 self.post_menu.entryconfig(3, state='disabled')
+                self.post_menu.entryconfig(5, state='disabled')
         else:
             # Disabilita tutti
-            self.post_menu.entryconfig(0, state='disabled')
-            self.post_menu.entryconfig(1, state='disabled')
-            self.post_menu.entryconfig(3, state='disabled')
+            self.post_menu.entryconfig(0, state='disabled')  # Ricerca Rapida
+            self.post_menu.entryconfig(1, state='disabled')  # Re-Analisi Avanzata
+            self.post_menu.entryconfig(3, state='disabled')  # Analisi Posizioni
+            self.post_menu.entryconfig(5, state='disabled')  # Report per Chat
 
     def open_quick_search(self):
         """Apre il dialog per ricerca rapida"""
@@ -195,6 +223,185 @@ class WhatsAppAnalyzerGUI:
         except ImportError as e:
             messagebox.showerror("Errore", f"Impossibile aprire Re-Analisi Avanzata:\n{str(e)}")
 
+    def open_location_analysis(self):
+        """Apre il dialog per l'analisi delle posizioni geografiche"""
+        try:
+            # Verifica che ci sia un'analisi completata
+            if not hasattr(self, 'output_dir') or not self.output_dir.get():
+                messagebox.showwarning(
+                    "Attenzione",
+                    "Devi prima completare un'analisi prima di utilizzare questa funzione."
+                )
+                return
+
+            output_dir = self.output_dir.get()
+
+            # Verifica esistenza cartella
+            if not os.path.exists(output_dir):
+                messagebox.showerror(
+                    "Errore",
+                    f"Cartella output non trovata:\n{output_dir}"
+                )
+                return
+
+            # Crea istanza AIAnalyzer con configurazione corrente
+            if self.use_local_model.get():
+                ai_analyzer = AIAnalyzer(
+                    api_key="",
+                    model=self.local_model_name.get(),
+                    use_local=True,
+                    local_url=self.local_url.get()
+                )
+            else:
+                ai_analyzer = AIAnalyzer(
+                    api_key=self.api_key.get(),
+                    model=self.model_var.get()
+                )
+
+            # Apri dialog configurazione
+            config_dialog = LocationAnalysisDialog(self.root, output_dir, self.chunks_dir.get(), ai_analyzer)
+            config = config_dialog.show()
+
+            if not config:
+                # Utente ha annullato
+                return
+
+            # Crea finestra di elaborazione
+            processing_window = tk.Toplevel(self.root)
+            processing_window.title("Analisi Posizioni in Corso...")
+            processing_window.geometry("800x600")
+            processing_window.transient(self.root)
+            processing_window.grab_set()
+
+            # Center window
+            self.center_window(processing_window, 800, 600)
+
+            # Frame principale
+            main_frame = ttk.Frame(processing_window, padding="20")
+            main_frame.pack(fill=tk.BOTH, expand=True)
+
+            # Label status
+            status_label = ttk.Label(main_frame, text="Inizializzazione...", font=('Arial', 12, 'bold'))
+            status_label.pack(pady=(0, 10))
+
+            # Progress bar
+            progress = ttk.Progressbar(main_frame, length=700, mode='determinate')
+            progress.pack(pady=(0, 20))
+
+            # Log area
+            log_frame = ttk.Frame(main_frame)
+            log_frame.pack(fill=tk.BOTH, expand=True)
+
+            log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=25, width=90,
+                                                 font=('Consolas', 9))
+            log_text.pack(fill=tk.BOTH, expand=True)
+
+            # Callbacks per analyzer
+            def log_callback(message):
+                log_text.insert(tk.END, message + '\n')
+                log_text.see(tk.END)
+                processing_window.update()
+
+            def progress_callback(value):
+                progress['value'] = value
+                processing_window.update()
+
+            def status_callback(text):
+                status_label.config(text=text)
+                processing_window.update()
+
+            # Avvia analisi in thread separato
+            def run_analysis():
+                try:
+                    status_callback("🔍 Analisi in corso...")
+
+                    # Crea analyzer
+                    analyzer = LocationAnalyzer(
+                        ai_analyzer=ai_analyzer,
+                        config=config,
+                        log_callback=log_callback,
+                        progress_callback=progress_callback
+                    )
+
+                    # Esegui analisi
+                    results = analyzer.analyze()
+
+                    # Genera report
+                    status_callback("📄 Generazione report HTML...")
+                    log_callback("\n" + "="*60)
+                    log_callback("📊 GENERAZIONE REPORT HTML")
+                    log_callback("="*60)
+
+                    generator = LocationReportGenerator(results, output_dir)
+                    html_path = generator.generate_report()
+
+                    log_callback(f"\n✅ Report generato: {html_path}")
+
+                    # Aggiorna stato bottone "Apri Report" nella GUI principale
+                    self.check_report_availability()
+
+                    # Completato
+                    status_callback("✅ Analisi completata!")
+                    progress_callback(100)
+
+                    # Chiudi finestra processing e apri report
+                    processing_window.after(1000, lambda: self._open_location_report(processing_window, html_path, results, config))
+
+                except Exception as e:
+                    log_callback(f"\n❌ ERRORE: {str(e)}")
+                    status_callback("❌ Errore durante l'analisi")
+                    messagebox.showerror(
+                        "Errore",
+                        f"Errore durante l'analisi delle posizioni:\n{str(e)}"
+                    )
+
+            # Avvia thread
+            import threading
+            thread = threading.Thread(target=run_analysis, daemon=True)
+            thread.start()
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Impossibile avviare analisi posizioni:\n{str(e)}")
+
+    def _open_location_report(self, processing_window, html_path, results, config):
+        """Apre il report e mostra dialog di completamento"""
+        try:
+            # Chiudi finestra processing
+            processing_window.destroy()
+
+            # Mostra messagebox con statistiche
+            stats = results['stats']
+            message = (
+                f"🗺️ Analisi Posizioni Geografiche completata!\n\n"
+                f"📊 Statistiche:\n"
+                f"  • Posizioni trovate: {stats['locations_found']}\n"
+                f"  • Posizioni geocodificate: {stats['locations_geocoded']}\n"
+                f"  • Posizioni uniche: {stats['unique_locations']}\n"
+                f"  • Eventi totali: {stats['total_events']}\n\n"
+            )
+
+            # Aggiungi avviso se modalità test
+            if config.get('test_mode', False):
+                message += (
+                    f"⚠️ MODALITÀ TEST ATTIVA\n"
+                    f"Analisi limitata ai primi {config.get('test_chunks', 5)} chunk.\n"
+                    f"Per analisi completa, disattiva modalità test.\n\n"
+                )
+
+            message += (
+                f"📁 Report salvato in:\n{os.path.dirname(html_path)}\n\n"
+                f"Il report verrà aperto nel browser."
+            )
+
+            messagebox.showinfo("Analisi Completata", message)
+
+            # Apri report nel browser
+            import webbrowser
+            webbrowser.open('file://' + os.path.abspath(html_path))
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore apertura report:\n{str(e)}")
+
     def open_chat_report(self):
         """Apre il dialog per report per chat"""
         try:
@@ -205,7 +412,7 @@ class WhatsAppAnalyzerGUI:
 
     def show_usage_guide(self):
         """Mostra la guida all'utilizzo"""
-        guide_text = """GUIDA ALL'UTILIZZO - WhatsApp Forensic Analyzer v3.2.1
+        guide_text = """GUIDA ALL'UTILIZZO - AI Forensics Report Analyzer v3.4
 
 ════════════════════════════════════════════════════════════════
 
@@ -229,8 +436,8 @@ di timeout (429) e ottimizza la velocità di analisi!
 === 2. ANALISI INIZIALE ===
 
 PASSO 1 - Carica il PDF:
-• Clicca "📂 Seleziona PDF Report WhatsApp"
-• Supporta: Cellebrite, UFED, Oxygen Forensics
+• Clicca "📂 Seleziona Report PDF"
+• Supporta: Cellebrite, Oxygen Forensics e report generici
 
 PASSO 2 - Configura AI:
 • API Key: inserisci la tua chiave (viene salvata criptata)
@@ -408,6 +615,7 @@ Versione 3.2.1 - Rate Limiting Multi-Provider"""
         guide_window = tk.Toplevel(self.root)
         guide_window.title("📖 Guida Utilizzo Completa")
         guide_window.geometry("900x700")
+        self.center_window(guide_window, 900, 700)
 
         text_widget = scrolledtext.ScrolledText(guide_window, wrap=tk.WORD, font=('Courier', 10))
         text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -482,6 +690,7 @@ passa alla RE-ANALISI AVANZATA.
         info_window = tk.Toplevel(self.root)
         info_window.title("Info Post-Elaborazione")
         info_window.geometry("700x650")
+        self.center_window(info_window, 700, 650)
 
         text_widget = scrolledtext.ScrolledText(info_window, wrap=tk.WORD, font=('Courier', 10))
         text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -492,54 +701,93 @@ passa alla RE-ANALISI AVANZATA.
 
     def show_about(self):
         """Mostra informazioni sull'applicazione"""
-        about_text = """╔═══════════════════════════════════════════════════════╗
-║   WhatsApp Forensic Analyzer v3.2.2                  ║
+        about_text = f"""╔═══════════════════════════════════════════════════════╗
+║   AI Forensics Report Analyzer v{APP_VERSION}                ║
+║   Sistema Analisi Posizioni Geografiche             ║
 ╚═══════════════════════════════════════════════════════╝
 
-Analisi forense di report WhatsApp da Cellebrite, UFED
-e Oxygen Forensics utilizzando intelligenza artificiale.
+Strumento professionale per l'analisi forense automatizzata
+di report WhatsApp, WeChat, Telegram e altre chat esportate
+da Cellebrite, Oxygen Forensics, UFED e tool forensi simili.
 
-✨ FEATURES PRINCIPALI:
-• Analisi AI multi-provider (OpenAI/Anthropic/Ollama)
-• Rate limiting intelligente multi-provider
-• Post-elaborazione avanzata (3 modalità)
-• Report per chat individuali e gruppi
-• Ricerca rapida e re-analisi filtrata
-• Analisi immagini con vision models
+✨ FUNZIONALITÀ PRINCIPALI:
+
+📄 ANALISI REPORT PDF
+• Importazione automatica report forensi
+• Segmentazione intelligente in chunk
+• Supporto documenti di qualsiasi dimensione
+• Modalità test preliminare (chunk limitati)
+• Estrazione immagini da path Cellebrite
+• Formati: TXT (base) o JSON (con immagini)
+
+🤖 INTELLIGENZA ARTIFICIALE
+• Multi-provider: OpenAI, Anthropic, Ollama
+• Rate limiting intelligente per ogni tier
+• Vision support (GPT-4o, Claude 3.5, llava)
+• Analisi multimodale: testo + immagini
+• Template prompt personalizzabili
+• Approccio gerarchico per documenti grandi
+
+💬 REPORT PER CHAT (v3.4 - Sistema LLM Puro)
+• Rilevamento automatico chat con AI
+• Sliding window con overlap (header spezzati)
+• Deduplicazione intelligente a 5 livelli
+• Riassunti dedicati per ogni conversazione
+• Supporto chat 1v1 e gruppi
+• Modalità test per analisi preliminare
+
+🔍 POST-ELABORAZIONE AVANZATA
+• Ricerca Rapida: domande su analisi esistenti
+• Re-Analisi: filtri keyword + prompt personalizzato
+• Report Chat: riassunti per conversazione
+
+📊 OUTPUT E REPORT
 • Report HTML interattivi multi-pagina
-• API key cifrate (AES-256)
-• Timeline eventi e statistiche
-• Modalità test per documenti grandi
+• Riassunto finale completo
+• Timeline eventi e metadati
+• Stima costi e tempi in tempo reale
+• Navigazione intuitiva tra chunk
 
-🔐 SICUREZZA:
-• Crittografia API keys con AES-256
-• Supporto modelli locali (zero cloud)
-• Machine binding per protezione chiavi
+🔐 SICUREZZA E PRIVACY
+• API keys cifrate con AES-256
+• Machine binding per protezione
+• Supporto modelli locali (zero cloud con Ollama)
+• Nessun dato inviato a server esterni
 
-📊 SUPPORTO PROVIDER:
+🔄 AGGIORNAMENTI AUTOMATICI
+• Notifiche nuove versioni disponibili
+• Controllo automatico (1 volta al giorno)
+• Download automatico o manuale
+• Changelog integrato
+
+📈 PROVIDER AI SUPPORTATI:
 • OpenAI: GPT-4o, GPT-3.5-turbo
 • Anthropic: Claude 3.5 Sonnet, Claude 3 Opus
-• Ollama: Llama3, Mistral, LLaVA (vision)
+• Ollama (locale): Llama3, Mistral, Qwen, LLaVA
 
-⚙️ IMPOSTAZIONI AVANZATE:
-• Configurazione limiti TPM per tier
-• Soglia riassunto gerarchico (10-100 chunk)
-• Adattamento automatico errori 429
+⚙️ CONFIGURAZIONI AVANZATE:
+• Impostazioni API per provider e tier
+• Soglia gerarchica configurabile (10-100 chunk)
+• Adattamento automatico errori rate limit
+• Dimensione chunk personalizzabile
+• Template prompt riutilizzabili
 
 ═══════════════════════════════════════════════════════
 
 © 2025 Luca Mercatanti
 🌐 https://mercatanti.com
+📧 luca.mercatanti@gmail.com
 
-Versione 3.2.2 - Rate Limiting Multi-Provider
-Rilascio: 17 Ottobre 2025
+Versione {APP_VERSION} - {APP_VERSION_DATE}
+Sistema Analisi Posizioni Geografiche + Persistenza Cartelle
 
 Tutti i diritti riservati."""
 
         # Crea dialog personalizzato con dimensioni controllabili
         about_window = tk.Toplevel(self.root)
         about_window.title("ℹ️ Informazioni")
-        about_window.geometry("600x580")
+        about_window.geometry("650x750")
+        self.center_window(about_window, 650, 750)
         about_window.resizable(False, False)
 
         text_widget = scrolledtext.ScrolledText(about_window, wrap=tk.WORD, font=('Courier', 9))
@@ -548,6 +796,49 @@ Tutti i diritti riservati."""
         text_widget.config(state='disabled')
 
         ttk.Button(about_window, text="Chiudi", command=about_window.destroy).pack(pady=5)
+
+    def _check_version_async(self):
+        """
+        Controlla versione app in background (non bloccante)
+        Eseguito SOLO se l'utente ha licenza valida
+        """
+        def check():
+            try:
+                checker = VersionChecker(
+                    api_url=self.license_manager.api_url,
+                    current_version=APP_VERSION
+                )
+
+                # Controlla solo se è passato 1 giorno dall'ultimo controllo
+                if checker.should_check():
+                    update_info = checker.check_for_updates()
+
+                    if update_info and update_info.get('update_available'):
+                        # Mostra notifica nel main thread
+                        self.root.after(0, self._show_update_dialog, update_info, checker)
+            except Exception as e:
+                # Fallimento silenzioso - il controllo versione non deve mai bloccare l'app
+                print(f"Controllo versione fallito (silenzioso): {e}")
+
+        # Esegui in thread separato per non bloccare UI
+        thread = threading.Thread(target=check, daemon=True)
+        thread.start()
+
+    def _show_update_dialog(self, update_info, checker):
+        """Mostra dialog aggiornamento disponibile (main thread)"""
+        try:
+            UpdateDialog(self.root, update_info, checker)
+        except Exception as e:
+            print(f"Errore mostrando dialog aggiornamento: {e}")
+
+    def _show_welcome_if_needed(self):
+        """Mostra il welcome dialog se l'utente non ha disabilitato la visualizzazione"""
+        if WelcomeDialog.should_show():
+            WelcomeDialog(self.root, logo_path="logo.jpg", force_show=False)
+
+    def show_welcome_message(self):
+        """Mostra il welcome dialog (chiamato dal menu Aiuto)"""
+        WelcomeDialog(self.root, logo_path="logo.jpg", force_show=True)
 
     def setup_ui(self):
         """Configura l'interfaccia grafica"""
@@ -563,7 +854,7 @@ Tutti i diritti riservati."""
         row = 0
 
         # ===== SEZIONE FILE PDF =====
-        ttk.Label(main_frame, text="Report WhatsApp (PDF):",
+        ttk.Label(main_frame, text="Report di Chat (PDF):",
                  font=('Arial', 10, 'bold')).grid(
             row=row, column=0, sticky=tk.W, pady=(0, 5)
         )
@@ -1096,6 +1387,15 @@ Tutti i diritti riservati."""
         ttk.Button(button_frame, text="Apri Cartella Output",
                   command=self.open_output_folder).grid(row=0, column=2, padx=5)
 
+        # Bottone Apri Report Dashboard
+        self.open_report_button = ttk.Button(button_frame, text="📊 Apri Report",
+                                             command=self.open_report_dashboard,
+                                             state='disabled')
+        self.open_report_button.grid(row=0, column=3, padx=5)
+
+        # Controlla se il report esiste già all'avvio
+        self.check_report_availability()
+
         # ===== COPYRIGHT =====
         copyright_frame = ttk.Frame(main_frame)
         copyright_frame.grid(row=row+1, column=0, columnspan=3, pady=(10, 0))
@@ -1153,7 +1453,8 @@ Tutti i diritti riservati."""
             if response:
                 self.skip_to_summary = True
                 self.output_dir.set(output_dir)  # Imposta questa come cartella di output
-                self.log(f"Trovati {num_existing} chunk già analizzati in: {output_dir}")
+
+                self.log(f"Trovati {num_existing} analisi in: {output_dir}")
                 self.log("Modalità: Creazione riassunto finale da analisi esistenti")
                 self.log("")
                 self.log("ISTRUZIONI:")
@@ -1162,15 +1463,8 @@ Tutti i diritti riservati."""
                 self.log("3. Premi 'Avvia Analisi' per generare il riassunto finale")
                 self.log("")
 
-                # Evidenzia i campi necessari
-                messagebox.showinfo(
-                    "Configurazione richiesta",
-                    "Per creare il riassunto finale:\n\n"
-                    "1. Inserisci la chiave API (OpenAI o Anthropic)\n"
-                    "2. Seleziona il modello\n"
-                    "3. Premi 'Avvia Analisi'\n\n"
-                    "Il sistema salterà l'analisi e creerà solo il riassunto finale."
-                )
+                # Abilita menu post-elaborazione
+                self.update_post_analysis_menu_state()
 
     def log(self, message):
         """Aggiunge un messaggio al log (GUI e buffer)"""
@@ -1251,6 +1545,9 @@ Tutti i diritti riservati."""
 
             # Controlla subito se ci sono analisi esistenti
             self.check_existing_analyses_in_folder(directory)
+
+            # Controlla se esiste il report dashboard
+            self.check_report_availability()
 
     def show_help(self, title, message):
         """Mostra una finestra di aiuto"""
@@ -1424,6 +1721,9 @@ Tutti i diritti riservati."""
         self.start_button.config(state='disabled')
         self.stop_button.config(state='normal')
         self.is_running = True
+
+        # Salva le cartelle SUBITO (anche se l'analisi viene interrotta, saranno disponibili al prossimo avvio)
+        self.save_last_folders()
 
         # Avvia thread
         thread = threading.Thread(target=self.run_analysis, args=(self.skip_to_summary,), daemon=True)
@@ -1613,8 +1913,19 @@ Tutti i diritti riservati."""
             self.log("ANALISI COMPLETATA CON SUCCESSO!")
             self.log("="*60)
 
+            # Salva le cartelle usate per il prossimo avvio
+            self.save_last_folders()
+
             # Abilita menu post-elaborazione
             self.update_post_analysis_menu_state()
+
+            # Abilita bottone "Apri Report" se il report esiste
+            self.check_report_availability()
+
+            # Mostra dialog informativo post-analisi (solo se non in modalità test)
+            if not self.analysis_config.get('test_mode', False):
+                if PostAnalysisInfoDialog.should_show():
+                    PostAnalysisInfoDialog(self.root)
 
             # Messaggio di completamento differenziato per modalità test
             if self.analysis_config.get('test_mode', False):
@@ -1677,6 +1988,34 @@ Tutti i diritti riservati."""
             os.startfile(output)
         else:
             messagebox.showinfo("Info", f"La cartella '{output}' non esiste ancora")
+
+    def open_report_dashboard(self):
+        """Apre la dashboard dei report nel browser"""
+        import webbrowser
+        output = self.output_dir.get()
+        report_path = os.path.join(output, "REPORT", "index.html")
+
+        if os.path.exists(report_path):
+            # Converte il path in URL file://
+            report_url = f"file:///{os.path.abspath(report_path).replace(os.sep, '/')}"
+            webbrowser.open(report_url)
+            self.log("📊 Dashboard report aperta nel browser")
+        else:
+            messagebox.showinfo(
+                "Report non disponibile",
+                "La dashboard dei report non è ancora stata generata.\n\n"
+                "Completa un'analisi principale per generare il report."
+            )
+
+    def check_report_availability(self):
+        """Controlla se il report esiste e abilita/disabilita il bottone"""
+        output = self.output_dir.get()
+        report_path = os.path.join(output, "REPORT", "index.html")
+
+        if os.path.exists(report_path):
+            self.open_report_button.config(state='normal')
+        else:
+            self.open_report_button.config(state='disabled')
 
     def open_website(self, url):
         """Apre un URL nel browser predefinito"""
@@ -2101,6 +2440,7 @@ Tutti i diritti riservati."""
         dialog = tk.Toplevel(self.root)
         dialog.title("⚠️ Informazioni Importanti - Limiti API OpenAI")
         dialog.geometry("750x650")
+        self.center_window(dialog, 750, 650)
         dialog.resizable(False, False)
         dialog.grab_set()  # Modale
 
@@ -2377,6 +2717,55 @@ https://console.anthropic.com
             self.log(f"⚠️ Errore salvataggio impostazioni: {str(e)}")
             return False
 
+    def save_last_folders(self):
+        """Salva le ultime cartelle usate nelle preferenze"""
+        import json
+        preferences_file = Path(".user_preferences.json")
+
+        prefs = {}
+        if preferences_file.exists():
+            try:
+                with open(preferences_file, 'r', encoding='utf-8') as f:
+                    prefs = json.load(f)
+            except:
+                pass
+
+        prefs['last_output_dir'] = self.output_dir.get()
+        prefs['last_chunks_dir'] = self.chunks_dir.get()
+
+        try:
+            with open(preferences_file, 'w', encoding='utf-8') as f:
+                json.dump(prefs, f, indent=2)
+        except Exception as e:
+            print(f"Errore salvataggio cartelle: {str(e)}")
+
+    def load_last_folders(self):
+        """Carica le ultime cartelle usate dalle preferenze"""
+        import json
+        preferences_file = Path(".user_preferences.json")
+
+        if not preferences_file.exists():
+            return
+
+        try:
+            with open(preferences_file, 'r', encoding='utf-8') as f:
+                prefs = json.load(f)
+
+            # Carica output_dir se esiste
+            if 'last_output_dir' in prefs and prefs['last_output_dir']:
+                last_output = prefs['last_output_dir']
+                if os.path.exists(last_output):
+                    self.output_dir.set(last_output)
+
+            # Carica chunks_dir se esiste
+            if 'last_chunks_dir' in prefs and prefs['last_chunks_dir']:
+                last_chunks = prefs['last_chunks_dir']
+                if os.path.exists(last_chunks):
+                    self.chunks_dir.set(last_chunks)
+
+        except Exception as e:
+            print(f"Errore caricamento cartelle: {str(e)}")
+
     def open_api_settings(self):
         """Apre il dialog per le impostazioni API avanzate"""
         # Carica impostazioni correnti
@@ -2386,6 +2775,7 @@ https://console.anthropic.com
         dialog = tk.Toplevel(self.root)
         dialog.title("⚙️ Impostazioni API Avanzate")
         dialog.geometry("700x1180")  # Aumentato a 1180 per mostrare completamente i pulsanti
+        self.center_window(dialog, 700, 1180)
         dialog.resizable(False, False)
         dialog.grab_set()
 

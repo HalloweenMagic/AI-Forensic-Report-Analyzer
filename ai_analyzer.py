@@ -744,16 +744,18 @@ RIASSUNTI DEI GRUPPI:
                          hierarchical=False, num_groups=0, analysis_config=None, log_callback=None):
         """Crea un report HTML completo multi-pagina con index.html"""
         from datetime import datetime
+        from dashboard_manager import DashboardManager
         import os
 
         if log_callback:
             log_callback("   Generazione report HTML multi-pagina...")
 
-        # Crea cartella per il report HTML
-        html_dir = Path(output_dir) / "report_html"
-        html_dir.mkdir(exist_ok=True)
+        # Crea cartella REPORT/analisi_principale/
+        report_base_dir = Path(output_dir) / "REPORT"
+        html_dir = report_base_dir / "analisi_principale"
+        html_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Genera index.html (pagina principale)
+        # 1. Genera index.html (pagina principale riassunto)
         self._create_index_page(html_dir, summary, chunks_analyzed, total_chunks,
                                hierarchical, num_groups, analysis_config)
 
@@ -763,15 +765,26 @@ RIASSUNTI DEI GRUPPI:
         # 3. Genera pagine analisi chunk
         self._create_chunks_pages(html_dir, analyses, chunks_analyzed)
 
-        # 4. Genera CSS condiviso
-        self._create_shared_css(html_dir)
+        # 4. Genera CSS condiviso (nella cartella REPORT/)
+        self._create_shared_css(report_base_dir)
 
-        # 5. Crea anche un HTML singolo per retrocompatibilità
-        self._create_single_html(output_dir, summary, chunks_analyzed, total_chunks,
-                                hierarchical, num_groups, analysis_config)
+        # 5. Registra il report nella dashboard
+        dashboard = DashboardManager(output_dir)
+        dashboard.register_report('main', {
+            'chunks_analyzed': chunks_analyzed,
+            'total_chunks': total_chunks,
+            'model': self.model,
+            'analyze_images': analysis_config.get('analyze_images', False) if analysis_config else False,
+            'hierarchical': hierarchical,
+            'num_groups': num_groups
+        })
+
+        # 6. Genera dashboard principale
+        dashboard.generate_dashboard()
 
         if log_callback:
             log_callback(f"   ✓ Report HTML generato in: {html_dir}")
+            log_callback(f"   ✓ Dashboard principale: {report_base_dir / 'index.html'}")
 
     def _create_shared_css(self, html_dir):
         """Crea il file CSS condiviso"""
@@ -862,11 +875,19 @@ RIASSUNTI DEI GRUPPI:
 
         content = stats_html + summary_content + quick_links
 
+        # Breadcrumb per la pagina principale
+        breadcrumb_items = [
+            ('🏠 Dashboard', '../index.html'),
+            ('Analisi Principale', None)
+        ]
+
         html_content = create_html_page(
             title='📱 Report Analisi WhatsApp',
             content=content,
             active_page='index',
-            subtitle='Riassunto Finale e Statistiche'
+            subtitle='Riassunto Finale e Statistiche',
+            breadcrumb_items=breadcrumb_items,
+            css_path='../styles.css'
         )
 
         index_file = Path(html_dir) / "index.html"
@@ -992,11 +1013,20 @@ RIASSUNTI DEI GRUPPI:
 
         content = config_html + images_html + costs_html + prompt_html + timestamp_html
 
+        # Breadcrumb per configurazione
+        breadcrumb_items = [
+            ('🏠 Dashboard', '../index.html'),
+            ('Analisi Principale', 'index.html'),
+            ('Configurazione', None)
+        ]
+
         html_content = create_html_page(
             title='⚙️ Configurazione Analisi',
             content=content,
             active_page='config',
-            subtitle='Dettagli della configurazione utilizzata'
+            subtitle='Dettagli della configurazione utilizzata',
+            breadcrumb_items=breadcrumb_items,
+            css_path='../styles.css'
         )
 
         config_file = Path(html_dir) / "configurazione.html"
@@ -1041,11 +1071,20 @@ RIASSUNTI DEI GRUPPI:
 
         content = chunks_list_html + stats_html
 
+        # Breadcrumb per indice chunk
+        breadcrumb_items = [
+            ('🏠 Dashboard', '../index.html'),
+            ('Analisi Principale', 'index.html'),
+            ('Analisi Chunk', None)
+        ]
+
         html_content = create_html_page(
             title='📊 Analisi Dettagliate',
             content=content,
             active_page='chunks',
-            subtitle=f'{chunks_analyzed} chunk analizzati'
+            subtitle=f'{chunks_analyzed} chunk analizzati',
+            breadcrumb_items=breadcrumb_items,
+            css_path='../styles.css'
         )
 
         chunks_index = Path(html_dir) / "analisi_chunks.html"
@@ -1091,171 +1130,25 @@ RIASSUNTI DEI GRUPPI:
         {nav_chunks}
         """
 
+        # Breadcrumb per singolo chunk
+        breadcrumb_items = [
+            ('🏠 Dashboard', '../index.html'),
+            ('Analisi Principale', 'index.html'),
+            ('Analisi Chunk', 'analisi_chunks.html'),
+            (f'Chunk {chunk_num}', None)
+        ]
+
         html_content = create_html_page(
             title=f'Chunk {chunk_num} / {total_chunks}',
             content=analysis_content,
             active_page='chunks',
-            subtitle=f'Analisi dettagliata'
+            subtitle=f'Analisi dettagliata',
+            breadcrumb_items=breadcrumb_items,
+            css_path='../styles.css'
         )
 
         chunk_file = Path(html_dir) / f"chunk_{chunk_num:03d}.html"
         with open(chunk_file, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-
-    def _create_single_html(self, output_dir, summary, chunks_analyzed, total_chunks,
-                           hierarchical, num_groups, analysis_config):
-        """Crea HTML singolo per retrocompatibilità"""
-        from datetime import datetime
-        from html_templates import format_text_to_html
-        import html as html_lib
-
-        # Converti il summary da Markdown a HTML formattato
-        summary_html = format_text_to_html(summary)
-
-        html_content = f"""<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Riassunto Finale - WhatsApp Forensic Analyzer</title>
-    <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }}
-        .container {{
-            background-color: white;
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }}
-        header {{
-            border-bottom: 3px solid #25D366;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }}
-        h1 {{
-            color: #075E54;
-            margin: 0;
-            font-size: 2.5em;
-        }}
-        .metadata {{
-            background-color: #f0f0f0;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-            border-left: 4px solid #25D366;
-        }}
-        .metadata p {{
-            margin: 5px 0;
-            color: #555;
-        }}
-        .content {{
-            margin-top: 30px;
-            line-height: 1.8;
-            color: #333;
-        }}
-        .content h1 {{
-            color: #075E54;
-            font-size: 2em;
-            margin-top: 30px;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 3px solid #25D366;
-        }}
-        .content h2 {{
-            color: #128C7E;
-            font-size: 1.6em;
-            margin-top: 25px;
-            margin-bottom: 12px;
-            padding-left: 15px;
-            border-left: 5px solid #25D366;
-        }}
-        .content h3 {{
-            color: #34B7F1;
-            font-size: 1.3em;
-            margin-top: 20px;
-            margin-bottom: 10px;
-        }}
-        .content h4 {{
-            color: #666;
-            font-size: 1.1em;
-            margin-top: 15px;
-            margin-bottom: 8px;
-        }}
-        .content p {{
-            margin-bottom: 15px;
-        }}
-        .content ul, .content ol {{
-            margin: 15px 0;
-            padding-left: 30px;
-        }}
-        .content li {{
-            margin-bottom: 8px;
-        }}
-        .content strong {{
-            color: #075E54;
-            font-weight: 600;
-        }}
-        footer {{
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            text-align: center;
-            color: #777;
-            font-size: 0.9em;
-        }}
-        .highlight {{
-            color: #25D366;
-            font-weight: bold;
-        }}
-        .info-box {{
-            background-color: #e6f3ff;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-            border-left: 4px solid #34B7F1;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>📱 Riassunto Finale - Analisi WhatsApp</h1>
-            <p style="color: #666; font-size: 1.1em; margin-top: 10px;">Analisi Completa del Documento</p>
-        </header>
-
-        <div class="info-box">
-            <p><strong>💡 Report Interattivo Disponibile!</strong></p>
-            <p>È stato generato un report HTML interattivo più completo nella cartella <strong>report_html/</strong></p>
-            <p>Apri il file <strong>report_html/index.html</strong> per una migliore esperienza di navigazione.</p>
-        </div>
-
-        <div class="metadata">
-            <p><strong>Data Analisi:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
-            <p><strong>Chunk Analizzati:</strong> <span class="highlight">{chunks_analyzed}</span> / {total_chunks}</p>
-            <p><strong>Modello AI:</strong> {self.model}</p>
-            {'<p><strong>Approccio:</strong> Riassunto gerarchico (' + str(num_groups) + ' gruppi)</p>' if hierarchical else ''}
-        </div>
-
-        <div class="content">
-            {summary_html}
-        </div>
-
-        <footer>
-            <p>Generato da <strong>WhatsApp Forensic Analyzer</strong></p>
-            <p>© 2025 Luca Mercatanti - <a href="https://mercatanti.com" style="color: #25D366;">mercatanti.com</a></p>
-        </footer>
-    </div>
-</body>
-</html>"""
-
-        html_file = Path(output_dir) / "RIASSUNTO_FINALE.html"
-        with open(html_file, 'w', encoding='utf-8') as f:
             f.write(html_content)
 
     def quick_search_on_analyses(self, analyses, user_query):
@@ -1939,3 +1832,212 @@ Rispondi SOLO con un oggetto JSON valido nel seguente formato:
         except Exception as e:
             # Altri errori: ritorna no-header
             return {"is_chat_header": False, "metadata": {}}
+
+    def detect_chats_in_text(self, text, chunk_id=None, total_chunks=None, log_callback=None):
+        """
+        NUOVO SISTEMA: Rileva TUTTE le chat presenti nel testo usando LLM.
+        Elimina dipendenza da regex per gestire header spezzati e formati variabili.
+
+        Args:
+            text: Testo completo da analizzare (può includere overlap da chunk vicini)
+            chunk_id: ID chunk corrente (per logging)
+            total_chunks: Totale chunk (per logging)
+            log_callback: Funzione per logging progressivo
+
+        Returns:
+            dict: {
+                'chats_detected': [
+                    {
+                        'chat_id': 'string',
+                        'type': '1v1' | 'group',
+                        'start_marker': 'primi 100 char che identificano inizio chat',
+                        'end_marker': 'ultimi 100 char prima di cambio chat o fine',
+                        'participants': [
+                            {'id': 'wxid_xxx', 'name': 'Mario', 'owner': true},
+                            ...
+                        ],
+                        'metadata': {
+                            'start_time': '20/03/2025 05:56:37',
+                            'last_activity': '21/03/2025 01:37:34',
+                            'identifier': 'hash',
+                            'num_attachments': 8,
+                            'account': '+39123456789'
+                        },
+                        'confidence': 'high' | 'medium' | 'low'
+                    },
+                    ...
+                ],
+                'notes': 'Eventuali osservazioni'
+            }
+        """
+        import json
+
+        # Costruisci prompt ottimizzato
+        context_info = ""
+        if chunk_id and total_chunks:
+            context_info = f"\n**CONTESTO**: Stai analizzando il chunk {chunk_id} di {total_chunks} da un report forense."
+
+        prompt = f"""ANALISI FORENSE WHATSAPP/WECHAT - RILEVAMENTO CONVERSAZIONI
+{context_info}
+
+**OBIETTIVO**: Identifica TUTTE le conversazioni (chat 1v1 o gruppi) presenti nel testo sottostante.
+
+**COSA CERCARE**:
+1. **Header/Intestazioni di chat** contenenti:
+   - Timestamp (Start Time, Last Activity, Date, ecc.)
+   - Lista partecipanti (Participants, Members, Users)
+   - Identificatori univoci (Identifier, Chat ID, hash esadecimali, wxid_xxx, numeri telefono)
+   - Metadati (Account, Number of attachments, Body file)
+
+2. **Sequenze di messaggi** con pattern:
+   - Timestamp ricorrenti
+   - Nomi utenti che si alternano
+   - Struttura conversazionale
+
+3. **Cambi di conversazione** riconoscibili da:
+   - Nuova intestazione
+   - Cambio completo dei partecipanti
+   - Interruzione netta della conversazione
+
+**GESTIONE CASI SPECIALI**:
+- Se un'intestazione appare INCOMPLETA o TRONCATA (es. inizia a metà), segna confidence: "low" e annota nei notes
+- Se vedi CONTINUAZIONE di chat precedente (messaggi senza header), annota nei notes
+- Se il testo termina a metà conversazione, segna end_marker come "[CONTINUA NEL CHUNK SUCCESSIVO]"
+
+**FORMATO OUTPUT RICHIESTO** (SOLO JSON VALIDO):
+{{
+  "chats_detected": [
+    {{
+      "chat_id": "identificatore estratto o generato (es: chat_001, wxid_xxx, hash)",
+      "type": "1v1" oppure "group",
+      "start_marker": "copia primi 100 caratteri che identificano CHIARAMENTE l'inizio della chat (includi timestamp o nomi)",
+      "end_marker": "copia ultimi 100 caratteri della chat prima del cambio conversazione o fine testo",
+      "participants": [
+        {{"id": "wxid_xxx o numero telefono", "name": "nome estratto", "owner": true/false}}
+      ],
+      "metadata": {{
+        "start_time": "timestamp primo messaggio o null",
+        "last_activity": "timestamp ultimo messaggio o null",
+        "identifier": "identificatore univoco chat se presente",
+        "num_attachments": numero allegati o 0,
+        "account": "account proprietario o null",
+        "body_file": "nome file body se presente"
+      }},
+      "confidence": "high se header completo e chiaro, medium se parziale, low se incerto"
+    }}
+  ],
+  "notes": "Eventuali osservazioni: header troncati, conversazioni incomplete, formati anomali, ecc."
+}}
+
+**TESTO DA ANALIZZARE**:
+---
+{text}
+---
+
+**ISTRUZIONI FINALI**:
+- Restituisci SOLO l'oggetto JSON, senza testo aggiuntivo
+- Se NON trovi alcuna chat, restituisci: {{"chats_detected": [], "notes": "Nessuna chat rilevata"}}
+- Numera progressivamente le chat se mancano identificatori (chat_001, chat_002, ...)
+- Per ogni chat, estrai il massimo delle informazioni possibili dai metadati"""
+
+        try:
+            if log_callback:
+                log_callback(f"   🤖 Chiamata LLM in corso...")
+
+            # Chiamata al modello configurato dall'utente
+            if self.use_local:
+                # Modello locale (Ollama)
+                response = requests.post(
+                    f"{self.local_url}/api/generate",
+                    json={
+                        "model": self.model,
+                        "prompt": prompt,
+                        "stream": False
+                    },
+                    timeout=300  # 5 minuti timeout per testi lunghi
+                )
+                response.raise_for_status()
+                result_text = response.json()['response']
+
+            elif self.is_anthropic:
+                # Anthropic Claude
+                message = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=4096,  # Spazio sufficiente per JSON complesso
+                    temperature=0.1,  # Bassa temperatura per output deterministico
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                result_text = message.content[0].text
+
+            else:
+                # OpenAI (GPT-4o, GPT-3.5-turbo, ecc.)
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    temperature=0.1,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                result_text = response.choices[0].message.content
+
+            # Parse JSON dalla risposta
+            result_text = result_text.strip()
+
+            # Estrai JSON da code block se presente
+            if '```json' in result_text:
+                start = result_text.find('```json') + 7
+                end = result_text.find('```', start)
+                if end == -1:
+                    end = len(result_text)
+                result_text = result_text[start:end].strip()
+            elif '```' in result_text:
+                start = result_text.find('```') + 3
+                end = result_text.find('```', start)
+                if end == -1:
+                    end = len(result_text)
+                result_text = result_text[start:end].strip()
+
+            # Parse JSON
+            result = json.loads(result_text)
+
+            if log_callback:
+                num_chats = len(result.get('chats_detected', []))
+                log_callback(f"   ✓ Rilevate {num_chats} chat in questo chunk")
+
+            return result
+
+        except json.JSONDecodeError as e:
+            # Tentativo di recupero: cerca JSON manualmente
+            if log_callback:
+                log_callback(f"   ⚠️ Errore parse JSON, tentativo recupero...")
+
+            try:
+                # Cerca il primo { e l'ultimo }
+                start_idx = result_text.find('{')
+                end_idx = result_text.rfind('}')
+                if start_idx != -1 and end_idx != -1:
+                    json_str = result_text[start_idx:end_idx+1]
+                    result = json.loads(json_str)
+                    return result
+            except:
+                pass
+
+            # Fallback: nessuna chat rilevata
+            if log_callback:
+                log_callback(f"   ✗ Impossibile parsare risposta LLM")
+            return {
+                'chats_detected': [],
+                'notes': f'Errore parse JSON: {str(e)}'
+            }
+
+        except Exception as e:
+            # Altri errori
+            if log_callback:
+                log_callback(f"   ✗ Errore chiamata LLM: {str(e)}")
+            return {
+                'chats_detected': [],
+                'notes': f'Errore LLM: {str(e)}'
+            }

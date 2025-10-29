@@ -31,8 +31,8 @@ class LicenseDialog:
 
         # Crea dialog modale
         self.dialog = tk.Toplevel(parent)
-        self.dialog.title("Licenza - WhatsApp Forensic Analyzer")
-        self.dialog.geometry("650x600")
+        self.dialog.title("Licenza - AI Forensics Report Analyzer")
+        self.dialog.geometry("650x700")
         self.dialog.resizable(False, False)
 
         # Rendi il dialog modale
@@ -52,9 +52,9 @@ class LicenseDialog:
         # Forza aggiornamento geometria
         self.dialog.update_idletasks()
 
-        # Usa dimensioni fisse (650x600) per maggiore leggibilità
+        # Usa dimensioni fisse (650x700) per maggiore leggibilità
         width = 650
-        height = 600
+        height = 700
 
         # Calcola posizione centrale
         screen_width = self.dialog.winfo_screenwidth()
@@ -84,7 +84,7 @@ class LicenseDialog:
 
         ttk.Label(
             header_frame,
-            text="Inserisci la tua chiave di licenza per utilizzare WhatsApp Forensic Analyzer",
+            text="Inserisci la tua chiave di licenza per utilizzare AI Forensics Report Analyzer",
             font=('Arial', 10),
             foreground='gray'
         ).pack(anchor=tk.W, pady=(5, 0))
@@ -157,13 +157,51 @@ class LicenseDialog:
 
         ttk.Label(
             request_frame,
-            text="Richiedi gratuitamente la tua licenza personale:",
-            font=('Arial', 10)
-        ).pack(anchor=tk.W, pady=(0, 12))
+            text="Genera la tua licenza gratuita istantaneamente:",
+            font=('Arial', 10, 'bold')
+        ).pack(anchor=tk.W, pady=(0, 10))
+
+        # Form generazione licenza
+        form_frame = ttk.Frame(request_frame)
+        form_frame.pack(fill=tk.X, pady=(0, 12))
+
+        # Nome
+        ttk.Label(form_frame, text="Nome:", font=('Arial', 9)).grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        self.nome_entry = ttk.Entry(form_frame, width=25)
+        self.nome_entry.grid(row=0, column=1, sticky=tk.W, padx=(5, 0), pady=(0, 5))
+
+        # Cognome
+        ttk.Label(form_frame, text="Cognome:", font=('Arial', 9)).grid(row=1, column=0, sticky=tk.W, pady=(0, 5))
+        self.cognome_entry = ttk.Entry(form_frame, width=25)
+        self.cognome_entry.grid(row=1, column=1, sticky=tk.W, padx=(5, 0), pady=(0, 5))
+
+        # Email
+        ttk.Label(form_frame, text="Email:", font=('Arial', 9)).grid(row=2, column=0, sticky=tk.W)
+        self.email_entry = ttk.Entry(form_frame, width=25)
+        self.email_entry.grid(row=2, column=1, sticky=tk.W, padx=(5, 0))
+
+        # Bottone genera licenza
+        ttk.Button(
+            request_frame,
+            text="⚡ Genera Licenza Gratuita",
+            command=self.generate_license_auto,
+            style='Accent.TButton',
+            width=30
+        ).pack(anchor=tk.W, pady=(0, 10))
+
+        # Separator
+        ttk.Separator(request_frame, orient='horizontal').pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(
+            request_frame,
+            text="Oppure richiedi via email:",
+            font=('Arial', 9),
+            foreground='gray'
+        ).pack(anchor=tk.W, pady=(0, 8))
 
         ttk.Button(
             request_frame,
-            text="📨 Richiedi Licenza Gratuita",
+            text="📨 Contatta via Email",
             command=self.show_request_license_info,
             width=30
         ).pack(anchor=tk.W)
@@ -184,6 +222,160 @@ class LicenseDialog:
             text="❌ Esci",
             command=self.exit_application
         ).pack(side=tk.RIGHT)
+
+    def generate_license_auto(self):
+        """Genera automaticamente una licenza gratuita"""
+        nome = self.nome_entry.get().strip()
+        cognome = self.cognome_entry.get().strip()
+        email = self.email_entry.get().strip()
+
+        # Validazione input
+        if not nome:
+            messagebox.showwarning(
+                "Nome Mancante",
+                "Inserisci il tuo nome",
+                parent=self.dialog
+            )
+            self.nome_entry.focus()
+            return
+
+        if not cognome:
+            messagebox.showwarning(
+                "Cognome Mancante",
+                "Inserisci il tuo cognome",
+                parent=self.dialog
+            )
+            self.cognome_entry.focus()
+            return
+
+        if not email:
+            messagebox.showwarning(
+                "Email Mancante",
+                "Inserisci la tua email",
+                parent=self.dialog
+            )
+            self.email_entry.focus()
+            return
+
+        # Validazione email semplice
+        if '@' not in email or '.' not in email.split('@')[-1]:
+            messagebox.showwarning(
+                "Email Non Valida",
+                "Inserisci un'email valida (es. nome@esempio.com)",
+                parent=self.dialog
+            )
+            self.email_entry.focus()
+            return
+
+        # Genera licenza tramite API
+        self.status_label.config(text="⚡ Generazione licenza in corso...", foreground='blue')
+
+        try:
+            import requests
+            import platform
+
+            payload = {
+                'action': 'generate_license',
+                'nome': nome,
+                'cognome': cognome,
+                'email': email,
+                'hardware_id': self.license_manager.get_hardware_id(),
+                'hostname': platform.node(),
+                'os': f"{platform.system()} {platform.release()}"
+            }
+
+            response = requests.post(
+                self.license_manager.api_url,
+                json=payload,
+                timeout=10
+            )
+
+            result = response.json()
+
+            if result.get('success'):
+                # Licenza generata con successo (o trovata esistente per email)
+                license_key = result.get('license_key')
+                message = result.get('message')
+
+                self.status_label.config(text=f"✓ {message}", foreground='green')
+
+                # Inserisci automaticamente la licenza nel campo
+                self.license_entry.delete(0, tk.END)
+                self.license_entry.insert(0, license_key)
+
+                # Mostra messaggio successo
+                messagebox.showinfo(
+                    "Licenza Pronta!",
+                    f"{message}\n\n"
+                    f"Chiave: {license_key}\n\n"
+                    f"Clicca 'Valida Licenza' per attivarla.",
+                    parent=self.dialog
+                )
+
+                # Focus sul bottone valida
+                self.validate_button.focus()
+
+            else:
+                # Errore generazione
+                error_msg = result.get('message', 'Errore sconosciuto')
+
+                # Caso speciale: PC ha già generato una licenza
+                if 'già generato una licenza' in error_msg:
+                    existing_license = result.get('existing_license', '')
+                    existing_email = result.get('existing_email', '')
+
+                    self.status_label.config(text="⚠️ PC già utilizzato per generazione", foreground='orange')
+
+                    # Mostra dialog con licenza esistente
+                    response = messagebox.askyesno(
+                        "Licenza Già Generata",
+                        f"Questo PC ha già generato una licenza!\n\n"
+                        f"Email associata: {existing_email}\n"
+                        f"Chiave: {existing_license[:20]}...\n\n"
+                        f"Vuoi usare la licenza esistente?",
+                        parent=self.dialog
+                    )
+
+                    if response:
+                        # Utente vuole usare la licenza esistente
+                        self.license_entry.delete(0, tk.END)
+                        self.license_entry.insert(0, existing_license)
+                        self.status_label.config(text="✓ Licenza esistente caricata", foreground='green')
+                        self.validate_button.focus()
+                    else:
+                        # Utente rifiuta, mostra opzione email
+                        messagebox.showinfo(
+                            "Richiesta Manuale",
+                            "Se hai perso la tua licenza o vuoi generarne una nuova,\n"
+                            "contatta l'amministratore via email usando il bottone\n"
+                            "'📨 Contatta via Email' qui sotto.",
+                            parent=self.dialog
+                        )
+                else:
+                    # Altri errori
+                    self.status_label.config(text=f"✗ {error_msg}", foreground='red')
+
+                    messagebox.showerror(
+                        "Errore Generazione",
+                        f"Impossibile generare la licenza.\n\n{error_msg}",
+                        parent=self.dialog
+                    )
+
+        except requests.exceptions.Timeout:
+            self.status_label.config(text="✗ Timeout connessione", foreground='red')
+            messagebox.showerror(
+                "Errore Connessione",
+                "Timeout durante la generazione della licenza.\nRiprova tra qualche istante.",
+                parent=self.dialog
+            )
+
+        except Exception as e:
+            self.status_label.config(text=f"✗ Errore: {str(e)}", foreground='red')
+            messagebox.showerror(
+                "Errore",
+                f"Errore durante la generazione:\n{str(e)}",
+                parent=self.dialog
+            )
 
     def validate_license(self):
         """Valida la licenza inserita"""
@@ -367,7 +559,7 @@ class LicenseDialog:
 
         # Bottone per aprire client email
         def open_email(event=None):
-            subject = "Richiesta Licenza - WhatsApp Forensic Analyzer"
+            subject = "Richiesta Licenza - AI Forensics Report Analyzer"
             body = (
                 "Nome e Cognome: [INSERISCI QUI]\n\n"
                 "Motivo utilizzo: [OPZIONALE]\n\n"

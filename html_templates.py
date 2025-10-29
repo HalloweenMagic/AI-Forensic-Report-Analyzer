@@ -616,7 +616,105 @@ def get_shared_css():
             background-color: #128C7E;
             transform: translateY(-5px);
         }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            background-color: #f8f9fa;
+            padding: 12px 40px;
+            border-bottom: 1px solid #e0e0e0;
+            margin: 0;
+        }
+
+        .breadcrumb-list {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+            gap: 8px;
+        }
+
+        .breadcrumb-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.95em;
+            color: #666;
+        }
+
+        .breadcrumb-item:not(:last-child)::after {
+            content: "›";
+            margin-left: 12px;
+            color: #999;
+            font-size: 1.2em;
+        }
+
+        .breadcrumb-item a {
+            color: #075E54;
+            text-decoration: none;
+            transition: all 0.2s;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .breadcrumb-item a:hover {
+            background-color: #e8f5e9;
+            color: #128C7E;
+        }
+
+        .breadcrumb-item.active {
+            color: #333;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .breadcrumb {
+                padding: 10px 20px;
+            }
+
+            .breadcrumb-item {
+                font-size: 0.85em;
+            }
+        }
     """
+
+
+def create_breadcrumb(items):
+    """
+    Crea il breadcrumb di navigazione
+
+    Args:
+        items: Lista di tuple (label, url) o lista di dict {'label': str, 'url': str}
+               Es: [('Dashboard', '../index.html'), ('Analisi Principale', None)]
+               L'ultimo elemento (url=None) rappresenta la pagina corrente
+
+    Returns:
+        str: HTML del breadcrumb
+    """
+    if not items:
+        return ''
+
+    breadcrumb_html = '<nav class="breadcrumb" aria-label="breadcrumb"><ol class="breadcrumb-list">'
+
+    for i, item in enumerate(items):
+        # Supporta sia tuple che dict
+        if isinstance(item, dict):
+            label = item.get('label', '')
+            url = item.get('url')
+        else:
+            label, url = item
+
+        is_last = (i == len(items) - 1)
+
+        if is_last or not url:
+            # Pagina corrente - non cliccabile
+            breadcrumb_html += f'<li class="breadcrumb-item active">{label}</li>'
+        else:
+            # Link cliccabile
+            breadcrumb_html += f'<li class="breadcrumb-item"><a href="{url}">{label}</a></li>'
+
+    breadcrumb_html += '</ol></nav>'
+    return breadcrumb_html
 
 
 def create_navigation(active_page='index'):
@@ -652,7 +750,7 @@ def create_footer():
     """Crea il footer della pagina"""
     return f"""
     <footer>
-        <p><strong>WhatsApp Forensic Analyzer</strong> - Report Generato il {datetime.now().strftime('%d/%m/%Y alle %H:%M:%S')}</p>
+        <p><strong>AI Forensics Report Analyzer</strong> - Report Generato il {datetime.now().strftime('%d/%m/%Y alle %H:%M:%S')}</p>
         <p>© 2025 <a href="https://mercatanti.com" target="_blank">Luca Mercatanti</a> - Tutti i diritti riservati</p>
     </footer>
 
@@ -663,20 +761,38 @@ def create_footer():
     """
 
 
-def create_html_page(title, content, active_page='index', subtitle=''):
-    """Crea una pagina HTML completa"""
+def create_html_page(title, content, active_page='index', subtitle='', breadcrumb_items=None, css_path='styles.css'):
+    """
+    Crea una pagina HTML completa
+
+    Args:
+        title: Titolo della pagina
+        content: Contenuto HTML della pagina
+        active_page: Pagina attiva nel menu ('index', 'config', 'chunks')
+        subtitle: Sottotitolo opzionale
+        breadcrumb_items: Lista di tuple (label, url) per il breadcrumb.
+                         Es: [('🏠 Dashboard', '../index.html'), ('Analisi Principale', None)]
+        css_path: Path al file CSS (default 'styles.css', per sottocartelle usare '../styles.css')
+
+    Returns:
+        str: HTML completo della pagina
+    """
+    # Genera breadcrumb se fornito
+    breadcrumb_html = create_breadcrumb(breadcrumb_items) if breadcrumb_items else ''
+
     return f"""<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title} - WhatsApp Forensic Analyzer</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>{title} - AI Forensics Report Analyzer</title>
+    <link rel="stylesheet" href="{css_path}">
 </head>
 <body>
     <div class="container">
         {create_header(title, subtitle)}
         {create_navigation(active_page)}
+        {breadcrumb_html}
         <main>
             {content}
         </main>
@@ -808,24 +924,34 @@ def create_chat_index_page(chat_summaries, output_dir, get_display_name_func):
     <div class="card info-box">
         <h3>🔗 Navigazione</h3>
         <p>
-            <a href="../report_html/index.html" class="btn">← Torna al Report Principale</a>
+            <a href="../index.html" class="btn">← Torna alla Dashboard</a>
+            <a href="../analisi_principale/index.html" class="btn">📱 Report Principale</a>
         </p>
     </div>
     """
 
     content = stats_html + chats_1v1_html + chats_group_html + back_link_html
 
+    # Breadcrumb per index chat
+    from html_templates import create_breadcrumb
+    breadcrumb_items = [
+        ('🏠 Dashboard', '../index.html'),
+        ('Report Conversazioni', None)
+    ]
+    breadcrumb_html = create_breadcrumb(breadcrumb_items)
+
     html_content = f"""<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Report per Chat - WhatsApp Forensic Analyzer</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Report per Chat - AI Forensics Report Analyzer</title>
+    <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
     <div class="container">
         {create_header('💬 Report per Chat', 'Riassunti individuali delle conversazioni')}
+        {breadcrumb_html}
         <main>
             {content}
         </main>
@@ -834,14 +960,11 @@ def create_chat_index_page(chat_summaries, output_dir, get_display_name_func):
 </body>
 </html>"""
 
-    index_file = Path(output_dir) / "index_chat.html"
+    index_file = Path(output_dir) / "index.html"
     with open(index_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
 
-    # Crea anche il CSS
-    css_file = Path(output_dir) / "styles.css"
-    with open(css_file, 'w', encoding='utf-8') as f:
-        f.write(get_shared_css())
+    # Il CSS condiviso è già in REPORT/styles.css (creato dalla dashboard)
 
     return str(index_file)
 
@@ -912,7 +1035,7 @@ def create_chat_detail_page(chat, summary, output_dir, get_display_name_func):
     # Link ai chunk originali
     chunks_links = []
     for chunk_num in chat.get('chunks', []):
-        chunks_links.append(f'<a href="../report_html/chunk_{chunk_num:03d}.html" class="btn">Chunk {chunk_num}</a>')
+        chunks_links.append(f'<a href="../analisi_principale/chunk_{chunk_num:03d}.html" class="btn">Chunk {chunk_num}</a>')
 
     chunks_html = f"""
     <div class="card">
@@ -927,25 +1050,35 @@ def create_chat_detail_page(chat, summary, output_dir, get_display_name_func):
     nav_html = """
     <div class="card info-box">
         <p>
-            <a href="index_chat.html" class="btn">← Torna all'Elenco Chat</a>
-            <a href="../report_html/index.html" class="btn">🏠 Report Principale</a>
+            <a href="index.html" class="btn">← Torna all'Elenco Chat</a>
+            <a href="../index.html" class="btn">🏠 Dashboard</a>
+            <a href="../analisi_principale/index.html" class="btn">📱 Report Principale</a>
         </p>
     </div>
     """
 
     content = nav_html + info_html + summary_content + chunks_html + nav_html
 
+    # Breadcrumb per dettaglio chat
+    breadcrumb_items = [
+        ('🏠 Dashboard', '../index.html'),
+        ('Report Conversazioni', 'index.html'),
+        (display_name, None)
+    ]
+    breadcrumb_html = create_breadcrumb(breadcrumb_items)
+
     html_content = f"""<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat: {html.escape(display_name)} - WhatsApp Forensic Analyzer</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Chat: {html.escape(display_name)} - AI Forensics Report Analyzer</title>
+    <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
     <div class="container">
         {create_header(f'{chat_type}: {html.escape(display_name)}', 'Riassunto conversazione')}
+        {breadcrumb_html}
         <main>
             {content}
         </main>
