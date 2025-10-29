@@ -51,6 +51,8 @@ Supporta diversi motori di intelligenza artificiale:
 📞 Numeri di telefono  
 🔍 Pattern sospetti di comunicazione (minacce, circonvenzione, ecc.)
 
+![Screenshot_report](report.jpg)
+
 ---
 
 ## 🚀 Quick Start
